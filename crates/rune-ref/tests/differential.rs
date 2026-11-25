@@ -357,7 +357,7 @@ fn cpu_gpu_cached_subtrees() {
             primitives,
             atlas: rune_ref::Atlas {
                 width: rune::text::ATLAS_SIZE,
-                height: rune::text::ATLAS_SIZE,
+                height: (rt.text.atlas.data.len() / rune::text::ATLAS_SIZE as usize) as u32,
                 data: rt.text.atlas.data.clone(),
             },
         }
@@ -412,7 +412,7 @@ fn cpu_gpu_cached_subtrees() {
             .collect(),
         atlas: rune_ref::Atlas {
             width: rune::text::ATLAS_SIZE,
-            height: rune::text::ATLAS_SIZE,
+            height: (rt.text.atlas.data.len() / rune::text::ATLAS_SIZE as usize) as u32,
             data: rt.text.atlas.data.clone(),
         },
     };
@@ -494,7 +494,7 @@ fn cpu_gpu_turned_layers() {
             primitives,
             atlas: rune_ref::Atlas {
                 width: rune::text::ATLAS_SIZE,
-                height: rune::text::ATLAS_SIZE,
+                height: (rt.text.atlas.data.len() / rune::text::ATLAS_SIZE as usize) as u32,
                 data: rt.text.atlas.data.clone(),
             },
         };
