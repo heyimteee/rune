@@ -335,12 +335,12 @@ pub(crate) mod keyboard {
     }
 
     /// Whether a layer-shell overlay with `policy` may request keyboard interactivity on
-    /// `zwlr_layer_surface_v1` `layer_version`. On-demand needs version 4; exclusive is in
-    /// every version.
+    /// `zwlr_layer_surface_v1` `layer_version`. On-demand and explicit need version 4;
+    /// exclusive is in every version.
     pub(crate) fn can_request_keys(policy: crate::KeyPolicy, layer_version: u32) -> bool {
         match policy {
             crate::KeyPolicy::None => false,
-            crate::KeyPolicy::OnDemand => layer_version >= 4,
+            crate::KeyPolicy::OnDemand | crate::KeyPolicy::Explicit => layer_version >= 4,
             crate::KeyPolicy::Exclusive => true,
         }
     }

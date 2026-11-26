@@ -96,6 +96,9 @@ fn window_flags_and_ex_styles_exclude_noredirectionbitmap_and_honour_input_and_k
 
     let all_exclusive = overlay_layered_ex_style(seeded, OverlayInput::All, KeyPolicy::Exclusive);
     assert_eq!(all_exclusive & WS_EX_NOACTIVATE, 0, "KeyPolicy::Exclusive can take keys");
+
+    let all_explicit = overlay_layered_ex_style(seeded, OverlayInput::All, KeyPolicy::Explicit);
+    assert_ne!(all_explicit & WS_EX_NOACTIVATE, 0, "KeyPolicy::Explicit takes keys only on request, never on a click");
 }
 
 #[test]

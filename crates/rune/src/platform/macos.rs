@@ -6,6 +6,7 @@ use objc2::rc::Retained;
 use objc2_app_kit::{NSEvent, NSPanel, NSWindow, NSResponder, NSScreen, NSView};
 use objc2_foundation::{NSObject, NSPoint, NSRect, NSSize};
 use crate::{KeyPolicy, OverlayInput, OverlayLevel, OverlayOptions, OverlaySupport};
+use crate::overlay::keys::{click_takes_keys, KeyGate};
 use std::{cell::{Cell, RefCell}, rc::Rc};
 
 #[doc(hidden)]
@@ -41,9 +42,12 @@ use surface::{apply_window_color_space, occlusion_hidden};
 #[allow(unsafe_code)]
 mod overlay_panel {
     use super::*;
+    use crate::overlay::keys::SharedKeyGate;
 
     pub(super) struct PanelFlags {
-        pub(super) keys: bool,
+        /// `canBecomeKeyWindow`: `OnDemand`/`Exclusive` always, `Explicit` only while its
+        /// request holds, `None` never. A click never admits an `Explicit` panel.
+        pub(super) gate: SharedKeyGate,
         pub(super) presence: Rc<Cell<Presence>>,
         pub(super) constrain: bool,
     }
@@ -57,7 +61,18 @@ mod overlay_panel {
 
         impl OverlayPanel {
             #[unsafe(method(canBecomeKeyWindow))]
-            fn can_become_key(&self) -> bool { self.ivars().keys }
+            fn can_become_key(&self) -> bool { self.ivars().gate.get().can_become_key() }
+            /// AppKit gave the keys to another window (or a hide resigned them). An explicit
+            /// panel must be asked again before it can become key, so a later click cannot
+            /// take them on its own.
+            #[unsafe(method(resignKeyWindow))]
+            fn resign_key(&self) {
+                let mut gate = self.ivars().gate.get();
+                gate.release();
+                self.ivars().gate.set(gate);
+                // SAFETY: `OverlayPanel` inherits from `NSPanel` (`MainThreadOnly`), whose `resignKeyWindow` takes no arguments.
+                unsafe { let _: () = msg_send![super(self), resignKeyWindow]; }
+            }
             #[unsafe(method(canBecomeMainWindow))]
             fn can_become_main(&self) -> bool { false }
             #[unsafe(method(occlusionState))]
@@ -209,6 +224,9 @@ pub(crate) struct Panel {
     pointer: Rc<PointerState>,
     options: OverlayOptions,
     follow_pointer: Cell<bool>,
+    /// Shared with `canBecomeKeyWindow`: `request_keys` admits an `Explicit` panel until a
+    /// release, a hide, or AppKit resigning the key.
+    gate: crate::overlay::keys::SharedKeyGate,
     /// Prewarmed, shown or fading, under one fence, and the requested capture exclusion,
     /// applied only while shown. While a fade runs the panel reads as visible, so a fading-out
     /// overlay can still draw its exit.
@@ -250,11 +268,12 @@ impl Panel {
         let ns_window = view.window()?;
         let rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(at.size.0 as f64, at.size.1 as f64));
         let presence = Rc::new(Cell::new(Presence::new(options.exclude_from_capture)));
+        let gate = Rc::new(Cell::new(KeyGate::new(options.keys)));
         let style = if ordinary { ns_window.styleMask() } else { NSWindowStyleMask::Borderless };
         // SAFETY: `mtm` proves main-thread execution; `OverlayPanel` inherits from `NSPanel`, so
         // `initWithContentRect:styleMask:backing:defer:` and the upcast to `NSPanel` are valid.
         let panel = unsafe {
-            let panel: Retained<OverlayPanel> = msg_send![super(mtm.alloc().set_ivars(PanelFlags { keys: options.keys.takes_keys(), presence: presence.clone(), constrain: ordinary })),
+            let panel: Retained<OverlayPanel> = msg_send![super(mtm.alloc().set_ivars(PanelFlags { gate: gate.clone(), presence: presence.clone(), constrain: ordinary })),
                 initWithContentRect: rect,
                 styleMask: style | NSWindowStyleMask::NonactivatingPanel,
                 backing: NSBackingStoreType::Buffered,
@@ -265,7 +284,7 @@ impl Panel {
         unsafe {
             panel.setReleasedWhenClosed(false);
             panel.setFloatingPanel(true);
-            panel.setBecomesKeyOnlyIfNeeded(options.keys == KeyPolicy::None);
+            panel.setBecomesKeyOnlyIfNeeded(!click_takes_keys(options.keys));
             panel.setHidesOnDeactivate(false);
             panel.setBackgroundColor(Some(&NSColor::clearColor()));
             panel.setCollectionBehavior(
@@ -313,7 +332,7 @@ impl Panel {
             return None;
         }
         panel.setDelegate(ns_window.delegate().as_deref());
-        Some(Panel { bridge, monitors: RefCell::new(None), pointer, options: options.clone(), follow_pointer: Cell::new(options.follow_pointer), presence, wake, ordinary, panel, window: ns_window, view })
+        Some(Panel { bridge, monitors: RefCell::new(None), pointer, options: options.clone(), follow_pointer: Cell::new(options.follow_pointer), gate, presence, wake, ordinary, panel, window: ns_window, view })
     }
 
     /// On the primary screen (the one with the menu bar), in AppKit's bottom-left coordinates.
@@ -411,9 +430,20 @@ impl Panel {
     }
     pub fn request_keys(&self) {
         if self.options.keys.takes_keys() {
+            let mut gate = self.gate.get();
+            gate.request();
+            self.gate.set(gate);
             self.panel.makeFirstResponder(Some(&self.view));
             self.panel.makeKeyWindow();
         }
+    }
+    /// Gives the keys back without hiding. An `Explicit` panel must be asked again before it can
+    /// become key; `OnDemand` and `Exclusive` keep their click-to-key behavior.
+    pub fn release_keys(&self) {
+        let mut gate = self.gate.get();
+        gate.release();
+        self.gate.set(gate);
+        if self.panel.isKeyWindow() { self.panel.resignKeyWindow(); }
     }
     pub fn is_key(&self) -> bool { self.panel.isKeyWindow() }
 }

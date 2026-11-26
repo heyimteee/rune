@@ -762,6 +762,8 @@ impl OverlayCore {
             if let Some(x11) = &self.x11 { self.shared.native.lock().unwrap().1.global_pointer = x11.global_pointer(); }
         }
         #[cfg(target_os = "macos")]
+        if requests.keys == Some(KeyRequest::Release) && let Some(panel) = &self.panel { panel.release_keys(); }
+        #[cfg(target_os = "macos")]
         if requests.keys == Some(KeyRequest::Take) && self.presence.shown() && self.options.keys.takes_keys()
             && let Some(panel) = &self.panel { panel.request_keys(); }
         #[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))]

@@ -115,6 +115,10 @@ impl Panel {
         let effects = step(&self.presence, Event::Hide { fade });
         self.stop_pointer();
         carry_out(&self.panel, &self.presence, effects);
+        // A hidden explicit panel must be asked again before it can become key.
+        let mut gate = self.gate.get();
+        gate.release();
+        self.gate.set(gate);
     }
 
     /// `sharingType` none while shown, or read-only so recorders see the panel again. Hidden,

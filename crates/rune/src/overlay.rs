@@ -12,14 +12,15 @@
 //!   Failing both, it falls back to an undecorated transparent toplevel (`toplevel.rs`) that
 //!   reports degraded placement, stacking and click-through in its capabilities.
 //! - X11: an override-redirect notification window, with an empty input shape unless
-//!   interactive. A `KeyPolicy::OnDemand` one sets the input focus itself on `request_keys` and
-//!   on a click.
+//!   interactive. A `KeyPolicy::OnDemand` or `Exclusive` one sets the input focus itself on
+//!   `request_keys` and on a click; an `Explicit` one only on `request_keys`.
 //! - macOS: winit's view moved into a non-activating `NSPanel` at status level on every space,
 //!   observing pointer movement even through transparent regions, ordered front without key
 //!   focus unless explicitly requested. Its window number is available for capture filters.
 //! - Windows: a topmost tool window with `WS_EX_NOACTIVATE` (plus `WS_EX_TRANSPARENT` and
 //!   `WS_EX_LAYERED` unless interactive), shown with `SW_SHOWNOACTIVATE`. A `KeyPolicy::OnDemand`
-//!   one is made without `WS_EX_NOACTIVATE`, so a click or `request_keys` activates it.
+//!   or `Exclusive` one is made without `WS_EX_NOACTIVATE`, so a click or `request_keys`
+//!   activates it; an `Explicit` one keeps it and activates only on `request_keys`.
 //! - With `release_gpu_when_hidden`, hidden means destroyed on Windows and macOS too.
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -319,16 +320,18 @@ impl<T: 'static> OverlayHandle<T> {
     #[inline(always)]
     pub fn set_display(&self, display: DisplayTarget) { self.shared.core.set_display(display); }
 
-    /// Request keyboard focus without application activation, for a shown `KeyPolicy::OnDemand`
-    /// or `KeyPolicy::Exclusive` overlay where `capabilities().nonactivating_keys` is
-    /// `Supported` (see `KeyPolicy`).
+    /// Request keyboard focus without application activation, for a shown `KeyPolicy::OnDemand`,
+    /// `KeyPolicy::Exclusive` or `KeyPolicy::Explicit` overlay where
+    /// `capabilities().nonactivating_keys` is `Supported` (see `KeyPolicy`). An `Explicit`
+    /// overlay is only key-capable while this request holds.
     #[inline(always)]
     pub fn request_keys(&self) { self.shared.core.request_keys(); }
 
     /// Gives the keys back without hiding: on Wayland layer-shell the surface's keyboard
     /// interactivity returns to none, the layer stays mapped, and the overlay hears a blur at
     /// once (compositors may send no `wl_keyboard.leave`). A later `request_keys` takes them
-    /// again. Other hosts do nothing yet. The latest of `request_keys` and `release_keys` in
+    /// again. On macOS the panel resigns the key and an `Explicit` one must be asked again.
+    /// Elsewhere it does nothing yet. The latest of `request_keys` and `release_keys` in
     /// one event-loop turn wins.
     #[inline(always)]
     pub fn release_keys(&self) { self.shared.core.release_keys(); }

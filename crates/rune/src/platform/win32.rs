@@ -558,16 +558,17 @@ impl Drop for OverlayWindow {
     }
 }
 
-/// A layered, topmost tool window that never activates, unless its policy takes keys
-/// (`KeyPolicy::OnDemand`: a click or `request_keys` activates it); unless `mode` takes every
-/// click, every click goes through (`Input::observe` lifts that over input regions). Windows composes a
+/// A layered, topmost tool window that never activates, unless its policy takes keys on a click
+/// (`KeyPolicy::OnDemand` or `Exclusive`: a click or `request_keys` activates it; `Explicit`:
+/// only `request_keys` does); unless `mode` takes every click, every click goes through
+/// (`Input::observe` lifts that over input regions). Windows composes a
 /// layered window, its DirectComposition content included, only once it has layered
 /// attributes: without them it stays invisible however often it is shown (#510 in Hex).
 /// Opaque attributes leave the content's own alpha as the only transparency.
 #[allow(unsafe_code)]
 fn overlay_styles(hwnd: HWND, mode: OverlayInput, keys: crate::KeyPolicy) -> Result<(), String> {
     let through = if mode == OverlayInput::All { 0 } else { WS_EX_TRANSPARENT };
-    let no_activate = if crate::overlay::keys::can_take_keys(keys) { 0 } else { WS_EX_NOACTIVATE };
+    let no_activate = if crate::overlay::keys::click_takes_keys(keys) { 0 } else { WS_EX_NOACTIVATE };
     #[cfg(feature = "windows-system-material")]
     let skip_layered = crate::system_material::windows::overlay_no_layered();
     #[cfg(not(feature = "windows-system-material"))]

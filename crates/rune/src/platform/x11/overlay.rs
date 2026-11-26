@@ -1,6 +1,7 @@
 //! X11 input SHAPE regions. The visual surface stays intact; only pointer ownership changes.
 //! An override-redirect window gets no focus from the window manager, so an overlay that may take
-//! keys (`KeyPolicy::OnDemand`) sets the input focus itself.
+//! keys (`KeyPolicy::OnDemand` or `Exclusive`) sets the input focus itself; an
+//! `Explicit` one only on `request_keys`.
 
 use x11rb::{connection::Connection, protocol::{shape::{ConnectionExt as _, SK, SO}, xproto::{ConnectionExt as _, ClipOrdering, ConfigureWindowAux, InputFocus, Rectangle, StackMode}}, rust_connection::RustConnection};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};

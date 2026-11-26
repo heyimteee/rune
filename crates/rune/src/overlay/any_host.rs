@@ -303,6 +303,7 @@ impl AnyHost for OverlayHost {
         #[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))]
         if let WindowEvent::MouseInput { state: winit::event::ElementState::Pressed, .. } = event
             && !core.pointer_owner.captured_by_injected()
+            && crate::overlay::keys::click_takes_keys(core.options.keys)
             && let Some(x11) = &core.x11 { x11.request_keys(); }
         use crate::input::host_events;
         if matches!(event, WindowEvent::CursorMoved { .. } | WindowEvent::CursorLeft { .. } | WindowEvent::MouseInput { .. })

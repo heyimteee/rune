@@ -98,10 +98,18 @@ pub enum KeyPolicy {
     /// stays without a keyboard until the process exits or is killed. Other hosts treat it as
     /// `OnDemand`.
     Exclusive,
+    /// Key-capable, but only `OverlayHandle::request_keys` takes the keys: a click never makes
+    /// the overlay key and never asks for them. `release_keys`, a hide, or the host resigning
+    /// the key gives them back, and a later request takes them again. Use it for a panel that
+    /// is mouse-first and enters a keyboard mode only on an explicit gesture; showing alone
+    /// never requests focus. macOS makes the panel key on request; other hosts take the keys on
+    /// request as `OnDemand` does.
+    Explicit,
 }
 
 impl KeyPolicy {
-    /// Whether an overlay with this policy may take keyboard focus (`OnDemand` or `Exclusive`).
+    /// Whether an overlay with this policy may take keyboard focus (`OnDemand`, `Exclusive` or
+    /// `Explicit`).
     #[inline]
     pub fn takes_keys(self) -> bool { !matches!(self, KeyPolicy::None) }
 }
@@ -158,8 +166,9 @@ pub struct OverlayOptions {
     /// Wayland without layer-shell (GNOME): lets an overlay that takes pointer input show on
     /// XWayland, as an override-redirect window that takes clicks in its input shape and never
     /// keyboard focus. Off by default: connecting starts XWayland on GNOME, so a host opts in
-    /// explicitly, having checked that it already runs. `KeyPolicy::OnDemand` overlays still
-    /// can't use it. Read when the surface is made, at each show on Wayland;
+    /// explicitly, having checked that it already runs. Overlays that take keys
+    /// (`KeyPolicy::OnDemand`, `Exclusive` or `Explicit`) still can't use it. Read when the
+    /// surface is made, at each show on Wayland;
     /// `OverlayHandle::set_xwayland_input` changes it.
     pub xwayland_input: bool,
 }

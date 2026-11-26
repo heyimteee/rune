@@ -3372,9 +3372,11 @@ is one more host on the event loop
   `WS_EX_NOACTIVATE` and takes the foreground when Windows lets the process. XWayland can't.
   `KeyPolicy::Exclusive` is the same except on layer-shell (any version), where `request_keys`
   asks for exclusive interactivity, so the overlay keeps the keys wherever the pointer goes
-  (Hyprland's `follow_mouse` moves on-demand focus away). `OverlayHandle::release_keys` sets a
-  layer's interactivity back to none and blurs the overlay without destroying it; on other
-  backends it does nothing yet. No safety net exists yet: an app whose event loop hangs while an
+  (Hyprland's `follow_mouse` moves on-demand focus away). `KeyPolicy::Explicit` is key-capable
+  but only `request_keys` takes the keys: a click never does, and the macOS panel cannot become
+  key until the request (release, hide, or resigning the key gives it up). `OverlayHandle::release_keys` sets a
+  layer's interactivity back to none and blurs the overlay without destroying it, and on macOS
+  resigns the panel key; elsewhere it does nothing yet. No safety net exists yet: an app whose event loop hangs while an
   `Exclusive` layer holds the keys leaves the desktop without a keyboard until it exits or is
   killed.
 - Activation tokens: `OverlayHandle::activation_token(reply)` asks a shown Wayland layer-shell

@@ -153,7 +153,7 @@ pub(crate) fn overlay_layered_ex_style(current: u32, mode: OverlayInput, keys: K
         | WS_EX_LAYERED
         | WS_EX_TOOLWINDOW
         | WS_EX_TOPMOST;
-    let no_activate = if keys.takes_keys() { 0 } else { WS_EX_NOACTIVATE };
+    let no_activate = if crate::overlay::keys::click_takes_keys(keys) { 0 } else { WS_EX_NOACTIVATE };
     let through = if mode == OverlayInput::All { 0 } else { WS_EX_TRANSPARENT };
     base | no_activate | through
 }
