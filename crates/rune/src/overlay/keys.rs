@@ -74,7 +74,7 @@ impl KeyGate {
 
 /// The gate a panel shares with its `canBecomeKeyWindow` implementation.
 #[cfg(target_os = "macos")]
-pub(crate) type SharedKeyGate = std::rc::Rc<Cell<KeyGate>>;
+pub(crate) type SharedKeyGate = std::rc::Rc<std::cell::Cell<KeyGate>>;
 
 #[cfg(test)]
 #[path = "keys_tests.rs"]
