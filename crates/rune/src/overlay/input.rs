@@ -741,6 +741,12 @@ impl OverlayCore {
         match requests.visibility {
             Some(Visibility::Show(fade)) => self.show_fading(app, event_loop, fade),
             Some(Visibility::Hide(fade)) => self.hide_fading(app, fade),
+            Some(Visibility::Prewarm) => {
+                if self.surface.live().is_none() {
+                    self.prepare(app, event_loop, true);
+                }
+                self.warm(app);
+            }
             None => {}
         }
         #[cfg(all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android")))]

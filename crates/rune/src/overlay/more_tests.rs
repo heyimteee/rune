@@ -227,6 +227,20 @@ fn the_latest_of_request_keys_and_release_keys_wins() {
 }
 
 #[test]
+fn prewarm_requests_a_hidden_warm_without_marking_the_overlay_shown() {
+    let shared = Arc::new(Shared::<u32>::default());
+    let handle = OverlayHandle { shared: shared.clone() };
+    handle.prewarm();
+    let q = std::mem::take(&mut *shared.core.requests.lock().unwrap());
+    assert!(matches!(q.visibility, Some(super::requests::Visibility::Prewarm)));
+    assert_eq!(
+        q.visible(),
+        Some(false),
+        "a prewarm leaves the overlay hidden; the later show must still be the reveal"
+    );
+}
+
+#[test]
 fn handle_requests_collapse_and_updates_keep_their_order() {
     let shared = Arc::new(Shared::<u32>::default());
     let handle = OverlayHandle { shared: shared.clone() };

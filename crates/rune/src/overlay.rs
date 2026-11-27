@@ -239,6 +239,7 @@ impl SharedCore {
     fn surface_stats(&self) -> crate::SurfaceStats { crate::frame::surface_stats::read(&self.stats) }
     fn show(&self) { self.request(|q| q.visibility = Some(Visibility::Show(Duration::ZERO))); }
     fn hide(&self) { self.request(|q| q.visibility = Some(Visibility::Hide(Duration::ZERO))); }
+    fn prewarm(&self) { self.request(|q| q.visibility = Some(Visibility::Prewarm)); }
     fn fade_in(&self, duration: Duration) { self.request(|q| q.visibility = Some(Visibility::Show(duration))); }
     fn fade_out(&self, duration: Duration) { self.request(|q| q.visibility = Some(Visibility::Hide(duration))); }
     fn set_macos_level(&self, level: isize) { self.request(|q| q.macos_level = Some(level)); }
@@ -441,6 +442,14 @@ impl<T: 'static> OverlayHandle<T> {
 
     #[inline(always)]
     pub fn hide(&self) { self.shared.core.hide(); }
+
+    /// Create and warm the hidden overlay's surface, renderer and first frame at alpha zero
+    /// without making it visible. Use this for a hover/expand prewarm: unlike `show`, it does
+    /// not mark the overlay shown, so the later `show` is a real reveal and AppKit primes its
+    /// occlusion state for the first content frames. A hidden `release_gpu_when_hidden`
+    /// overlay makes its surface here; the next show takes it at once.
+    #[inline(always)]
+    pub fn prewarm(&self) { self.shared.core.prewarm(); }
 
     /// Like `show`, fading the window's alpha in from zero over `duration` on macOS
     /// (AppKit's default ease). Elsewhere the overlay appears at once.

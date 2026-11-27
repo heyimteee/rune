@@ -52,8 +52,10 @@ pub(crate) enum Prime {
 impl Prime {
     pub(in crate::window) fn launching() -> Self { Prime::Launching { left: 2 } }
 
-    /// Presumes the window shown for the next two frames (used when ordering a panel in).
-    pub(crate) fn arm(&mut self) { *self = Self::launching(); }
+    /// Presumes the window shown while AppKit catches up after an order-in. Eight frames cover
+    /// the several-millisecond `occlusionState` lag at 60–120 Hz without letting a genuinely
+    /// covered panel draw for long (the first visible reading stops the presumption).
+    pub(crate) fn arm(&mut self) { *self = Self::Launching { left: 8 }; }
 
     pub(crate) fn presumes(self) -> bool { matches!(self, Prime::Launching { .. }) }
 

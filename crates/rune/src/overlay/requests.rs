@@ -80,6 +80,9 @@ impl TokenQueue {
 pub(super) enum Visibility {
     Show(Duration),
     Hide(Duration),
+    /// Create/warm the hidden overlay's surface and first frame at alpha zero without making
+    /// it visible. A later show is then a real reveal, not a repeated show.
+    Prewarm,
 }
 
 #[derive(Default)]

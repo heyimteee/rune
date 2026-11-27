@@ -16,13 +16,15 @@ fn a_new_window_presumes_itself_shown_for_two_frames_or_until_stopped() {
 }
 
 #[test]
-fn arming_prime_after_steady_presumes_shown_for_two_frames() {
+fn arming_prime_after_steady_presumes_shown_until_appkit_reports_visible() {
     let mut prime = Prime::Steady;
     assert!(!prime.presumes());
     prime.arm();
     assert!(prime.presumes(), "ordering a panel in arms prime");
-    prime.spend();
-    assert!(prime.presumes(), "the follow-up frame still presumes");
+    for _ in 0..7 {
+        prime.spend();
+        assert!(prime.presumes(), "AppKit's occlusion lag outlasts two frames");
+    }
     prime.spend();
     assert_eq!(prime, Prime::Steady);
     prime.arm();

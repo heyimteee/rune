@@ -59,9 +59,10 @@ fn a_shown_overlay_draws_through_the_occluded_reading_right_after_its_order_in()
     overlay.hide();
     assert!(!overlay.prime.presumes(), "a hide ends the presumption");
     overlay.prime.arm();
-    overlay.prime.spend();
-    overlay.prime.spend();
-    assert!(overlay.occlusion_reading(true), "after its two frames, a covered panel reads as covered");
+    for _ in 0..8 {
+        overlay.prime.spend();
+    }
+    assert!(overlay.occlusion_reading(true), "after the reveal grace, a covered panel reads as covered");
 }
 
 #[test]
