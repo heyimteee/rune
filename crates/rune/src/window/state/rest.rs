@@ -1,5 +1,5 @@
 //! A window's memory at rest. Between frames the renderer keeps what the next one may reuse:
-//! spare layer targets (`render::layers`, up to 32 MiB) and `El::cache` textures no layer drew
+//! spare layer targets (`render::layers`, up to two window-sized layers, capped at 32 MiB) and `El::cache` textures no layer drew
 //! last frame (up to the cache budget), which the screen on show doesn't use; and the scratch
 //! targets of its layers, its backdrop copies and blur pyramid, and returned staging chunks (up to
 //! 4 MiB), which each of its frames uses again.

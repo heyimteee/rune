@@ -14,8 +14,11 @@ use plan::{Describe, Disposition, Held, Kept, Layer, Move, Planned, Planner, Poo
 pub(super) const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 /// Default offscreen texture budget for [`El::cache`](crate::El::cache) subtrees (64 MiB).
 pub const DEFAULT_CACHE_BUDGET: u64 = 64 * 1024 * 1024;
-/// What spare layer targets may hold (Layers::spare): a full-window layer at 2880x1800 or two menus' worth.
+/// Most spare layer targets may hold (Layers::spare): a full-window layer at 2880x1800 or two
+/// menus' worth. A small overlay is capped lower by [`spare_limit`].
 const SPARE_BYTES: u64 = 32 * 1024 * 1024;
+/// Least spare layer targets may hold: a menu or hover target on a compact pill.
+const MIN_SPARE_BYTES: u64 = 4 * 1024 * 1024;
 /// Maximum width or height of a cached subtree's offscreen texture in device pixels.
 const MAX_CACHE_DIM: u32 = 4096;
 
@@ -99,11 +102,20 @@ impl Layers {
         }
     }
 
-    /// Keeps `t` for a later layer of its size, within `SPARE_BYTES`; the least recently used go.
+    /// Bytes of spare targets this window keeps: two of its own full-window layers, so a menu,
+    /// popover or hover target repeats without a texture, but never the 32 MiB a large desktop
+    /// window may need. A 680×220 overlay keeps ~9.6 MB where the flat cap kept 32 MB.
+    fn spare_limit(&self) -> u64 {
+        spare_limit(self.viewport)
+    }
+
+    /// Keeps `t` for a later layer of its size, within this window's spare budget; the least
+    /// recently used go.
     fn park(&mut self, mut t: Target) {
         t.cache = None;
         self.spare.push(t);
-        self.trim_spare(SPARE_BYTES);
+        let limit = self.spare_limit();
+        self.trim_spare(limit);
     }
 
     /// Drops the least recently used spare targets until they hold at most `limit` bytes.
@@ -233,6 +245,13 @@ pub struct LayerStats {
     pub bytes: u64,
     pub extra_passes: usize,
     pub allocations: u64,
+}
+
+/// The spare-target budget for a window of `viewport` device pixels.
+pub(super) fn spare_limit(viewport: (u32, u32)) -> u64 {
+    let full = u64::from(viewport.0) * u64::from(viewport.1)
+        * u64::from(FORMAT.block_copy_size(None).unwrap());
+    full.saturating_mul(2).clamp(MIN_SPARE_BYTES, SPARE_BYTES)
 }
 
 fn union(a: &mut [f32; 4], b: [f32; 4]) {
@@ -543,7 +562,8 @@ impl Renderer {
             // the pools as they are: `commit` then carries the moves out and `paint_layers` draws them.
             let layers = &mut self.layers;
             let pools = Pools { slots: &layers.targets, retained: &layers.retained, spare: &layers.spare };
-            layers.planner.decide(&layers.plan, &pools, layers.cache_budget, isolate, max_dim);
+            let spare = spare_limit(layers.viewport);
+            layers.planner.decide(&layers.plan, &pools, layers.cache_budget, isolate, max_dim, spare);
             self.commit(device);
             self.paint_layers(device, &staging);
         }

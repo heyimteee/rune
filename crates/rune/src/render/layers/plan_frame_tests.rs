@@ -48,10 +48,12 @@ fn one_layer_left_of_a_burst_reads_no_spare() {
     let mut renderer = Renderer::new(&gpu.device, OFFSCREEN_FORMAT);
     let mut atlas = crate::text::TextSystem::default().atlas;
     let burst = burst();
-    renderer.prepare(&gpu.device, &gpu.queue, &mut atlas, &burst, (256, 256));
+    // A window whose two-layer spare budget is the 32 MiB ceiling, so the burst's 32 MiB of
+    // targets all fit: a small window deliberately keeps less (see `spare_targets_scale_with_the_window`).
+    renderer.prepare(&gpu.device, &gpu.queue, &mut atlas, &burst, (2048, 2048));
     let visits = renderer.layers.planner.parked.visits;
     for frame in 0..4 {
-        renderer.prepare(&gpu.device, &gpu.queue, &mut atlas, &burst[..3], (256, 256));
+        renderer.prepare(&gpu.device, &gpu.queue, &mut atlas, &burst[..3], (2048, 2048));
         assert_eq!(renderer.layers.spare.len(), 1023, "the burst's other targets are parked");
         assert_eq!(renderer.layers.planner.parked.visits, visits, "frame {frame} read a spare");
         assert!(warm_sized(&renderer), "a burst's planning buffers go once it ends");
@@ -124,15 +126,16 @@ fn a_menu_after_a_burst_opens_and_closes_without_allocating() {
     let mut atlas = crate::text::TextSystem::default().atlas;
     let burst = burst();
     let menu = &burst[..3];
+    // A window whose two-layer spare budget is the 32 MiB ceiling: all 1,024 targets fit.
     for instances in [&burst[..], &[], menu, &[], menu] {
-        renderer.prepare(&gpu.device, &gpu.queue, &mut atlas, instances, (256, 256));
+        renderer.prepare(&gpu.device, &gpu.queue, &mut atlas, instances, (2048, 2048));
     }
     let (warm, allocations) = (renderer.layers.planner.capacities(), renderer.layer_stats().allocations);
     for toggle in 0..4 {
-        renderer.prepare(&gpu.device, &gpu.queue, &mut atlas, &[], (256, 256));
+        renderer.prepare(&gpu.device, &gpu.queue, &mut atlas, &[], (2048, 2048));
         assert_eq!(renderer.layers.spare.len(), 1024, "the burst's targets are all parked");
         assert_eq!(renderer.layers.planner.capacities(), warm, "closing {toggle}");
-        renderer.prepare(&gpu.device, &gpu.queue, &mut atlas, menu, (256, 256));
+        renderer.prepare(&gpu.device, &gpu.queue, &mut atlas, menu, (2048, 2048));
         assert_eq!(renderer.layers.planner.capacities(), warm, "opening {toggle}");
         assert_eq!(renderer.layer_stats().allocations, allocations, "opening {toggle} made a target");
     }
@@ -171,4 +174,14 @@ fn a_frame_never_holds_more_layer_textures_than_dev() {
     instances.extend(group(two, 0.0));
     renderer.prepare(&gpu.device, &gpu.queue, &mut atlas, &instances, (2048, 2048));
     assert_eq!(renderer.layers.peak_bytes(), 64 << 20, "two textures, with the scratch already gone");
+}
+
+#[test]
+fn spare_targets_scale_with_the_window() {
+    // Two full-window RGBA16F layers for a 680×220 overlay at 2×.
+    assert_eq!(super::spare_limit((1360, 440)), 9_574_400);
+    // A compact pill keeps the floor, not 32 MiB of targets.
+    assert_eq!(super::spare_limit((1360, 52)), 4 * 1024 * 1024);
+    // A large desktop window still gets the old ceiling.
+    assert_eq!(super::spare_limit((5120, 2880)), 32 * 1024 * 1024);
 }

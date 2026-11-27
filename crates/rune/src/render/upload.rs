@@ -347,15 +347,35 @@ impl Renderer {
             Self::write_rows(&staging, &self.atlas, &atlas.data, rows);
         }
         let mut atlas_changed = self.atlas_pages.len() > atlas.pages.len();
+        let mut rebuilt = false;
         self.atlas_pages.truncate(atlas.pages.len());
         let filled = self.uber.outlines().is_some();
         for index in 0..atlas.pages.len() {
-            if index >= self.atlas_pages.len() {
-                let texture = Self::atlas_texture(device, filled, ATLAS_SIZE);
+            // A secondary page is only as tall as the rows it has taken (in power-of-two steps),
+            // not the full 4 MiB a used-up page needs: 7 churn-created pages cost 3.5 MiB at
+            // 256 rows instead of 28 MiB. A page that later fills past its texture is made
+            // taller here and its rows re-sent, like page 0.
+            let rows = atlas.page_rows(index + 1).next_power_of_two()
+                .clamp(ATLAS_START_ROWS, ATLAS_SIZE);
+            let needs_texture = self.atlas_pages.get(index)
+                .is_none_or(|(texture, _)| texture.height() < rows);
+            if needs_texture {
+                let texture = Self::atlas_texture(device, filled, rows);
                 let bind = Self::bind_group(device, &self.bind_layout, &self.globals, self.uber.outlines(), &texture, &texture, None);
-                self.atlas_pages.push((texture, bind));
+                if index < self.atlas_pages.len() {
+                    self.atlas_pages[index] = (texture, bind);
+                } else {
+                    self.atlas_pages.push((texture, bind));
+                }
                 atlas_changed = true;
+                rebuilt = true;
             }
+        }
+        if rebuilt {
+            // A new texture has none of the rows uploaded before it; send every placed row.
+            atlas.resend_rows();
+        }
+        for index in 0..atlas.pages.len() {
             if let Some(rows) = atlas.pages[index].dirty.take() {
                 atlas.rows_uploaded(index + 1, rows);
                 Self::write_rows(&staging, &self.atlas_pages[index].0, &atlas.pages[index].data, rows);

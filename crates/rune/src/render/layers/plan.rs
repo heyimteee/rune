@@ -271,6 +271,8 @@ pub(super) struct Planner {
     slots: Vec<Option<Source>>,
     pub(super) kept: View,
     pub(super) parked: View,
+    /// Bytes of parked targets this frame's parks may hold (the window's scaled budget).
+    spare_bytes: u64,
     /// Test-only: how many frames have given scratch back.
     #[cfg(test)]
     pub(super) settles: u64,
@@ -284,6 +286,7 @@ impl Default for Planner {
             slots: Vec::new(),
             kept: View::new(Source::Retained),
             parked: View::new(Source::Spare),
+            spare_bytes: SPARE_BYTES,
             #[cfg(test)]
             settles: 0,
         }
@@ -295,8 +298,9 @@ impl Planner {
     /// takes. It reads each target where `pools` holds it, and only where dev's passes read one: a
     /// layer whose slot fits reads no spare. It moves nothing and needs no device, so a walk of
     /// frames drives it.
-    pub(super) fn decide<T: Describe>(&mut self, plan: &[Layer], pools: &Pools<'_, T>, budget: u64, isolate: bool, max_dim: u32) {
+    pub(super) fn decide<T: Describe>(&mut self, plan: &[Layer], pools: &Pools<'_, T>, budget: u64, isolate: bool, max_dim: u32, spare_bytes: u64) {
         let bpp = bpp();
+        self.spare_bytes = spare_bytes;
         self.dispositions.clear();
         self.dispositions.resize(plan.len(), Disposition::Skip);
         self.slots.clear();
@@ -441,13 +445,13 @@ impl Planner {
     }
 
     /// Parks slot `index`'s target for a later layer of its size: what `spare` stops holding once
-    /// it passes `SPARE_BYTES`, least recently used first, goes.
+    /// it passes the window's spare budget, least recently used first, goes.
     fn park_slot<T: Describe>(&mut self, index: usize, pools: &Pools<'_, T>) {
         let Some(source) = self.slots[index].take() else { return };
         self.moves.push(Move::Park(index));
         self.parked.push(source);
         let mut bytes = self.parked.bytes(pools);
-        while bytes > SPARE_BYTES {
+        while bytes > self.spare_bytes {
             let oldest = self.parked.oldest(pools);
             bytes -= self.parked.held(oldest, pools).bytes;
             self.parked.swap_remove(oldest);

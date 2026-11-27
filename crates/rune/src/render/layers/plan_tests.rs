@@ -440,7 +440,7 @@ fn frame(planner: &mut Planner, pools: &Old, old_pools: &mut Old, scene: &[Spec]
         before.trim_retained(0, budget);
     } else {
         let pools = Pools { slots: &before.slots, retained: &before.retained, spare: &before.spare };
-        planner.decide(&layers, &pools, budget, isolate, 4096);
+        planner.decide(&layers, &pools, budget, isolate, 4096, SPARE_BYTES);
         for (index, old) in plan.iter().enumerate() {
             let got = planner.dispositions[index];
             match (old.show, got) {
